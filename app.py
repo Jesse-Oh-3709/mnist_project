@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
+import tensorflow.keras as keras
 import cv2
 import base64
 from io import BytesIO
