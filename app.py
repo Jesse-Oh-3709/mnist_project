@@ -1,7 +1,9 @@
 from flask import Flask, render_template, request, jsonify
 import numpy as np
 import tensorflow as tf
-import tensorflow.keras as keras
+from tensorflow.keras import layers, models
+from tensorflow import keras
+import matplotlib.pyplot as plt
 import cv2
 import base64
 from io import BytesIO
@@ -16,12 +18,19 @@ model = None
 
 def create_model():
     """Create the MNIST neural network model"""
-    model = keras.Sequential([
-        keras.layers.Flatten(input_shape=(28, 28)),
-        keras.layers.Dense(128, activation='relu'),
-        keras.layers.Dropout(0.2),
-        keras.layers.Dense(10, activation='softmax')
+    model = models.Sequential([
+        layers.Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)),
+        layers.MaxPooling2D((2, 2)),
+
+        layers.Conv2D(64, (3, 3), activation='relu'),
+        layers.MaxPooling2D((2, 2)),
+
+        layers.Flatten(),
+        layers.Dense(64, activation='relu'),
+        layers.Dropout(0.5),
+        layers.Dense(10, activation='softmax')
     ])
+
     
     model.compile(optimizer='adam',
                   loss='sparse_categorical_crossentropy',
@@ -34,29 +43,39 @@ def train_model():
     global model
     
     # Load MNIST dataset
-    (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
-    
-    # Normalize pixel values
-    x_train = x_train.astype('float32') / 255.0
-    x_test = x_test.astype('float32') / 255.0
+    (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+
+    # Reshape to add channel dimension (28, 28) → (28, 28, 1)
+    x_train = x_train.reshape(-1, 28, 28, 1).astype("float32") / 255.0
+    x_test = x_test.reshape(-1, 28, 28, 1).astype("float32") / 255.0
+
+
     
     # Create model
     model = create_model()
     
     # Train model
     print("Training model...")
-    history = model.fit(x_train, y_train,
-                       validation_data=(x_test, y_test),
-                       epochs=5,
-                       batch_size=128,
-                       verbose=1)
+    history = model.fit(x_train, y_train, epochs=5, 
+                    validation_split=0.1, batch_size=64)
+
     
     # Save model
     model.save('mnist_model.h5')
     
     # Evaluate model
-    test_loss, test_accuracy = model.evaluate(x_test, y_test, verbose=0)
-    print(f"Test accuracy: {test_accuracy:.4f}")
+    test_loss, test_acc = model.evaluate(x_test, y_test, verbose=2)
+    print(f"\nTest accuracy: {test_acc:.4f}")
+
+    plt.plot(history.history['accuracy'], label='train acc')
+    plt.plot(history.history['val_accuracy'], label='val acc')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.title('CNN Training Accuracy')
+    plt.show()
+
+
     
     return history
 
@@ -92,8 +111,8 @@ def preprocess_image(image_data):
     # Normalize
     image_array = image_array.astype('float32') / 255.0
     
-    # Reshape for model input
-    image_array = image_array.reshape(1, 28, 28)
+    # Reshape for model input (CNN expects 4D: batch_size, height, width, channels)
+    image_array = image_array.reshape(1, 28, 28, 1)
     
     return image_array
 
@@ -158,4 +177,4 @@ if __name__ == '__main__':
     load_model()
     
     # Run the app
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)
